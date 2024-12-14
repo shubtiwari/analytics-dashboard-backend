@@ -107,6 +107,7 @@ def filter_collection_data(collector_id, grade=None, year=None, range_start_date
                 updated_filtered_data.append(entry)
 
     filtered_data = updated_filtered_data
+    print("========FILTER 3 ======", filtered_data)
     # Initialize aggregates
     total_collected_amount = 0
     total_expected_amount = 0
@@ -124,6 +125,7 @@ def filter_collection_data(collector_id, grade=None, year=None, range_start_date
         total_expected_amount += entry['expected_fees']
         
         # Parse the month from the paid_date
+        print("==== PAID DATE =====", entry["paid_date"])
         month = datetime.strptime(entry['paid_date'], '%Y-%m-%d').strftime('%Y-%m')
         
         if month in monthly_data:
