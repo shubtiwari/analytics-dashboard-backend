@@ -59,84 +59,106 @@ def generate_monthly_data(start_date, end_date):
 
     return monthly_data_list
 
-def filter_collection_data(collector_id, grade=None, year=None):
+def filter_collection_data(collector_id, grade=None, year=None, range_start_date=None, range_end_date=None):
     """
-    Filters the data based on collector_id, grade, and year.
+    Filters the data based on collector_id, grade, year, and date_range.
     Aggregates and returns the total collected amount, unpaid amount, monthly data, product-wise collections,
-    and the number of students.
+    and the number of students, along with the percentage of students who paid on time.
     Args:
         collector_id (int): The collector ID to filter by.
         grade (str): The grade to filter by.
         year (str): The year to filter by.
+        date_range (tuple): The date range to filter by (start_date, end_date).
     Returns:
         dict: Aggregated response with total collected amount, unpaid amount, monthly data, product-wise collections,
-              and the number of students.
+              and the number of students, along with the on-time payment percentage.
     """
-    print(collector_id, grade, year)
     data = STUDENT_FEE_COLLECTION
     filtered_data = []
+    
+    # Filter by collector_id, grade, and year
     for entry in data:
-        # Filter by collector_id and grade
         if int(entry['collector_id']) == int(collector_id) and (not grade or entry['grade'] == grade):
-                filtered_data.append(entry)
+            filtered_data.append(entry)
     
-    print(filtered_data)
     
-    start_date, end_date=get_current_fiscal_year()
+    # Use fiscal year logic or passed year for date range
+    start_date, end_date = get_current_fiscal_year()
     if year:
-        start_date, end_date=split_fiscal_year(year)
+        start_date, end_date = split_fiscal_year(year)
 
+    if range_start_date and start_date< range_start_date:
+        start_date = range_start_date
+    
+    if range_end_date and end_date > range_end_date:
+        end_date = range_end_date
 
     updated_filtered_data = []
     for entry in filtered_data:
         if int(entry['collector_id']) == int(collector_id):
-            if start_date<=entry['paid_date'] and entry['paid_date']<=end_date:
+            if not year or entry['year'] == year:
                 updated_filtered_data.append(entry)
 
-    filtered_data=updated_filtered_data
+    filtered_data = updated_filtered_data
+    updated_filtered_data = []
+    for entry in filtered_data:
+        if int(entry['collector_id']) == int(collector_id):
+            if (not range_start_date or not range_end_date) or range_start_date <= entry['paid_date'] <= range_end_date:
+                updated_filtered_data.append(entry)
 
-    print(filtered_data)
+    filtered_data = updated_filtered_data
     # Initialize aggregates
     total_collected_amount = 0
     total_expected_amount = 0
     monthly_data = defaultdict(lambda: {'expected_amount': 0, 'collected_amount': 0})
     product_wise_data = defaultdict(int)
     unique_students = set()
-    # # If no data is found for the provided year, we need to get the last 12 months data
-    # if not filtered_data:
-    #     current_date = datetime.now()
-    #     start_month = 4  # Start from April
-    #     # Generate the last 12 months including months from April to March
-    #     months = [(current_date.year - 1, start_month + i) if (start_month + i) > 12 else (current_date.year, start_month + i) for i in range(12)]
-    #     # Add zero values for months without data
-    #     for month in months:
-    #         month_key = f"{month[0]}-{month[1]:02d}"
-    #         monthly_data[month_key] = {'expected_amount': 0, 'collected_amount': 0}
+    on_time_payment_count = 0  # Track students who paid on time
 
-
+    # Generate monthly data
     monthly_data = generate_monthly_data(start_date, end_date)
+
     # Process each entry in the filtered data
     for entry in filtered_data:
         total_collected_amount += entry['paid_amount']
         total_expected_amount += entry['expected_fees']
+        
         # Parse the month from the paid_date
         month = datetime.strptime(entry['paid_date'], '%Y-%m-%d').strftime('%Y-%m')
-        # Update monthly data
-        monthly_data[month]['expected_amount'] += entry['expected_fees']
-        monthly_data[month]['collected_amount'] += entry['paid_amount']
+        
+        if month in monthly_data:
+            # Update monthly data
+            monthly_data[month]['expected_amount'] += entry['expected_fees']
+            monthly_data[month]['collected_amount'] += entry['paid_amount']
+        
         # Update product-wise data
         product_wise_data[entry['product']] += entry['paid_amount']
+        
         # Add student_id to unique_students
         unique_students.add(entry['student_id'])
-    
+        
+        # Check if the payment was made on time (paid_date <= due_date)
+        paid_date = datetime.strptime(entry['paid_date'], "%Y-%m-%d")
+        due_date = datetime.strptime(entry['due_date'], "%Y-%m-%d")
+        
+        if paid_date <= due_date:
+            on_time_payment_count += 1
+
     # Calculate unpaid amount
     unpaid_amount = total_expected_amount - total_collected_amount
+    
+    # Calculate the percentage of students who paid on time
+    total_students = len(unique_students)
+    on_time_payment_percentage = (on_time_payment_count / total_students) * 100 if total_students > 0 else 0
+
     # Format the response
     response = {
         'total_collected_amount': total_collected_amount,
         'unpaid_amount': unpaid_amount,
         'monthly_data': dict(monthly_data),
         'product_wise_collected_amount': dict(product_wise_data),
-        'number_of_students': len(unique_students)
+        'number_of_students': total_students,
+        'on_time_payment_percentage': on_time_payment_percentage
     }
+    
     return response

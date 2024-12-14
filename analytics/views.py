@@ -50,12 +50,14 @@ def random_data_view(request):
         collector_id = request.GET.get('collector_id')
         grade = request.GET.get('grade_id')
         academic_year = request.GET.get('academic_year')
+        start_date = request.GET.get('range_start_date')
+        end_date = request.GET.get('range_end_date')
 
         # Check if academic_year is provided and valid
         # if academic_year and academic_year not in academic_years:
         #     return JsonResponse({"error": "Invalid academic year format"}, status=400)
 
-        final_response = filter_collection_data(collector_id, grade, academic_year)
+        final_response = filter_collection_data(collector_id, grade, academic_year, start_date, end_date)
         return JsonResponse(final_response, safe=False)  # safe=False to allow list of dictionaries
 
 
